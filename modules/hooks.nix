@@ -344,7 +344,7 @@ in
           color =
             mkOption {
               type = types.enum [ "auto" "always" "never" ];
-              description = lib.mdDoc "When to use generate output.";
+              description = lib.mdDoc "When to use color in generated output.";
               default = "auto";
             };
 
@@ -602,21 +602,119 @@ in
 
       flake8 =
         {
+          # All options for flake8 are listed here:
+          # https://flake8.pycqa.org/en/latest/user/options.html
           binPath =
             mkOption {
               type = types.str;
-              description = lib.mdDoc "flake8 binary path. Should be used to specify flake8 binary from your Nix-managed Python environment.";
-              default = "${pkgs.python39Packages.flake8}/bin/flake8";
-              defaultText = lib.literalExpression ''
-                "''${pkgs.python39Packages.flake8}/bin/flake8"
-              '';
+              description = lib.mdDoc "flake8 binary path. Can be used to specify the flake8 binary from an existing Python environment.";
+              default = "${settings.flake8.package}/bin/flake8";
+              defaultText = "\${settings.flake8.package}/bin/flake8";
             };
-
+          color =
+            mkOption {
+              type = types.enum [ "auto" "always" "never" ];
+              description = lib.mdDoc "When to use color in generated output.";
+              default = "auto";
+            };
+          count =
+            mkOption {
+              type = types.bool;
+              description = lib.mdDoc "Print the total number of errors.";
+              default = false;
+            };
+          exclude =
+            mkOption {
+              type = types.listOf types.str;
+              description = lib.mdDoc "Comma-separated list of glob patterns to exclude from checks.";
+              default = [ ];
+            };
+          extend-exclude =
+            mkOption {
+              type = types.listOf types.str;
+              description = lib.mdDoc "Comma-separated list of glob patterns to add to the list of excluded ones. The difference to the `--exclude` option is, that this option can be used to selectively add individual patterns without overriding the default list entirely.";
+              default = [ ];
+            };
+          filename =
+            mkOption {
+              type = types.listOf types.str;
+              description = lib.mdDoc "Comma-separated list of glob patterns to include for checks.";
+              default = [ ];
+            };
           format =
             mkOption {
-              type = types.str;
-              description = lib.mdDoc "Output format.";
+              type = types.enum [ "default" "pylint" "code" "col" "path" "row" "text" ];
+              description = lib.mdDoc "Formatter used to display errors to the user.";
               default = "default";
+            };
+          hang-closing =
+            mkOption {
+              type = types.bool;
+              description = lib.mdDoc "Toggle whether pycodestyle should enforce matching the indentation of the opening bracket’s line. When you specify this, it will prefer that you hang the closing bracket rather than match the indentation.";
+              default = false;
+            };
+          ignore =
+            mkOption {
+              type = types.listOf types.str;
+              description = lib.mdDoc "List of codes to ignore.";
+              default = [ "E121" "E123" "E126" "E226" "E24" "E704" "W503" "W504" ];
+            };
+          extend-ignore =
+            mkOption {
+              type = types.listOf types.str;
+              description = lib.mdDoc "List of codes to add to the list of ignored ones.";
+              default = [ ];
+            };
+          max-line-length =
+            mkOption {
+              type = types.int;
+              description = lib.mdDoc "Maximum length that any line (with some exceptions) may be.";
+              default = 79;
+            };
+          max-doc-length =
+            mkOption {
+              type = types.nullOr types.int;
+              description = lib.mdDoc "Maximum length that a comment or docstring line may be.";
+              default = null;
+              defaultText = "no limit";
+            };
+          indent-size =
+            mkOption {
+              type = types.int;
+              description = lib.mdDoc "Number of spaces used for indentation.";
+              default = 4;
+            };
+          show-source =
+            mkOption {
+              type = types.bool;
+              description = lib.mdDoc "Print the source code generating the error/warning in question.";
+              default = false;
+            };
+          statistics =
+            mkOption {
+              type = types.bool;
+              description = lib.mdDoc "Count the number of occurrences of each error/warning code and print a report.";
+              default = false;
+            };
+          require-plugins =
+            mkOption {
+              type = types.listOf types.str;
+              description = lib.mdDoc "Require specific plugins to be installed before running.";
+              default = [ ];
+            };
+          package =
+            mkOption {
+              type = types.package;
+              description = lib.mdDoc "The `flake8` package to use.";
+              default = "${pkgs.python311Packages.flake8}";
+              defaultText = "\${pkgs.python311Packages.flake8}";
+              example = "\${pkgs.python310Packages.flake8}";
+            };
+          verbosity =
+            mkOption {
+              type = types.enum [ "quiet" "normal" "verbose" "very verbose" ];
+              description = lib.mdDoc "Output verbosity.";
+              default = "normal";
             };
         };
 
@@ -1777,7 +1875,31 @@ in
         {
           name = "flake8";
           description = "Check the style and quality of Python files.";
-          entry = "${settings.flake8.binPath} --format ${settings.flake8.format}";
+          entry =
+            let
+              cmdArgs =
+                mkCmdArgs (with settings.flake8; [
+                  [ (color != "auto") "--color=${color}" ]
+                  [ count "--count" ]
+                  [ (exclude != [ ]) "--exclude=${lib.escapeShellArgs exclude}" ]
+                  [ (extend-exclude != [ ]) "--extend-exclude=${lib.escapeShellArgs extend-exclude}" ]
+                  [ (filename != [ ]) "--filename=${lib.escapeShellArgs filename}" ]
+                  [ (format != "default") "--format=${format}" ]
+                  [ hang-closing "--hang-closing" ]
+                  [ (ignore != [ "E121" "E123" "E126" "E226" "E24" "E704" "W503" "W504" ]) "--ignore=${lib.escapeShellArgs ignore}" ]
+                  [ (extend-ignore != [ ]) "--extend-ignore=${lib.escapeShellArgs extend-ignore}" ]
+                  [ (max-line-length != 79) "--max-line-length=${toString max-line-length}" ]
+                  [ (max-doc-length != null) "--max-doc-length=${toString max-line-length}" ]
+                  [ (indent-size != 4) "--indent-size=${toString indent-size}" ]
+                  [ show-source "--show-source" ]
+                  [ statistics "--statistics" ]
+                  [ (require-plugins != [ ]) "--require-plugins=${lib.escapeShellArgs require-plugins}" ]
+                  [ (verbosity == "quiet") "--quiet" ]
+                  [ (verbosity == "verbose") "--verbose" ]
+                  [ (verbosity == "very verbose") "-vv" ]
+                ]);
+            in
+            "${settings.flake8.binPath} ${cmdArgs}";
           types = [ "python" ];
         };
 
