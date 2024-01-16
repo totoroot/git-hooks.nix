@@ -1153,7 +1153,7 @@ in
               description = lib.mdDoc "Spellings and words to ignore.";
               default = [ ];
               example = [
-                "MQTT"
+                "mqtt"
                 "mosquitto"
               ];
             };
@@ -2463,7 +2463,13 @@ in
             let
               # Concatenate config in config file with section for ignoring words generated from list of words to ignore
               config = "${settings.typos.config}" + lib.strings.optionalString (settings.typos.ignored-words != [ ]) "\n\[default.extend-words\]" + lib.strings.concatMapStrings (x: "\n${x} = \"${x}\"") settings.typos.ignored-words;
+              # Create config file in Nix store and use it as custom config for `typos`
               configFile = builtins.toFile "typos-config.toml" config;
+              excludesFromConfig =
+                let
+                  toml = builtins.fromTOML (builtins.readFile configFile);
+                in
+                  (toml.files or { }).extend-exclude or [ ];
               cmdArgs =
                 mkCmdArgs
                   (with settings.typos; [
